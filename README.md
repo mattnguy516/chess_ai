@@ -1,2 +1,3 @@
 # chess_ai
-Creating a chess AI bot
+
+Attempting to make a chess AI
