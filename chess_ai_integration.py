@@ -6,6 +6,8 @@ Connects the trained neural network with your chess engine
 import torch
 import numpy as np
 import random
+import copy
+
 from typing import Optional, Tuple, List
 from chess_engine import ChessBoard, Color, PieceType, Piece, Move
 from chess_ai_model import ChessNet, ChessTrainer
@@ -62,8 +64,61 @@ class ChessAI:
         
         return moves_with_squares
     
+    def evaluate_move_heuristically(self, board: ChessBoard, move: Move) -> float:
+        """Add chess knowledge to improve move selection"""
+        score = 0.0
+        # Piece values for tactical evaluation
+
+        piece_values = {
+            PieceType.PAWN: 1, PieceType.KNIGHT: 3, PieceType.BISHOP: 3,
+            PieceType.ROOK: 5, PieceType.QUEEN: 9, PieceType.KING: 0
+        }
+        
+        # 1. Prioritize captures (especially good trades)
+        if move.captured_piece:
+            captured_value = piece_values.get(move.captured_piece.piece_type, 0)
+            moving_value = piece_values.get(move.piece.piece_type, 0)
+            score += captured_value * 10  # Big bonus for captures
+            # Avoid bad trades (don't trade queen for pawn)
+
+            if captured_value < moving_value:
+                score -= (moving_value - captured_value) * 5
+
+        # 2. Avoid hanging pieces (check if move puts piece in danger)
+        temp_board = copy.deepcopy(board)
+        temp_board.make_move(move, check_legality=False)
+        to_row, to_col = move.to_pos
+        
+        # Check if the moved piece can be captured
+        if temp_board.is_square_attacked(to_row, to_col, 
+                                        Color.BLACK if move.piece.color == Color.WHITE else Color.WHITE):
+
+            piece_value = piece_values.get(move.piece.piece_type, 0)
+            score -= piece_value * 8  # Heavy penalty for hanging pieces
+
+        # 3. Prefer center control early in game
+        if len(board.move_history) < 20:
+            to_row, to_col = move.to_pos
+            if 2 <= to_row <= 5 and 2 <= to_col <= 5:  # Center squares
+                score += 2
+
+        # 4. Castling bonus
+        if move.is_castling:
+            score += 5
+
+        # 5. Avoid moving into check
+        if temp_board.is_in_check(move.piece.color):
+            score -= 20
+
+        # 6. Prefer checks (but not blindly)
+        opponent_color = Color.BLACK if move.piece.color == Color.WHITE else Color.WHITE
+        if temp_board.is_in_check(opponent_color):
+            score += 3
+
+        return score
+    
     def select_best_move(self, board: ChessBoard) -> Optional[Move]:
-        """Select the best move using the AI model"""
+        """Select the best move using AI + chess heuristics"""
         if not self.model:
             return self.select_random_move(board)
         
@@ -82,28 +137,32 @@ class ChessAI:
             if not legal_moves_with_squares:
                 return None
             
-            # Try to find the exact predicted move
-            for move, from_square, to_square in legal_moves_with_squares:
-                if from_square == predicted_from and to_square == predicted_to:
-                    print(f"🧠 AI selected: {move} (exact match)")
-                    return move
-            
-            # If exact match not found, find best alternative
+            # Combine AI prediction with chess heuristics
             best_move = None
-            best_score = -1
+            best_total_score = float('-inf')
             
             for move, from_square, to_square in legal_moves_with_squares:
-                # Score based on how close the prediction is
-                from_score = 1.0 if from_square == predicted_from else 0.0
-                to_score = 1.0 if to_square == predicted_to else 0.0
-                total_score = from_score + to_score
+                # AI prediction score
+                ai_score = 0
+                if from_square == predicted_from and to_square == predicted_to:
+                    ai_score = 10  # Exact match bonus
+                elif from_square == predicted_from:
+                    ai_score = 3   # Partial match
+                elif to_square == predicted_to:
+                    ai_score = 2   # Partial match
                 
-                if total_score > best_score:
-                    best_score = total_score
+                # Chess heuristics score
+                heuristic_score = self.evaluate_move_heuristically(board, move)
+                
+                # Combined score (weight heuristics more heavily due to limited training data)
+                total_score = heuristic_score + (ai_score * 0.5)
+                
+                if total_score > best_total_score:
+                    best_total_score = total_score
                     best_move = move
             
             if best_move:
-                print(f"🧠 AI selected: {best_move} (best alternative, score: {best_score})")
+                print(f"🧠 AI selected: {best_move} (score: {best_total_score:.1f})")
                 return best_move
             
             # Fallback to first legal move
