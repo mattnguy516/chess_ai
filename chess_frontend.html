@@ -1,0 +1,693 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>🏛️ Chess AI Game</title>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      body {
+        font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        min-height: 100vh;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 20px;
+      }
+
+      .game-container {
+        background: white;
+        border-radius: 20px;
+        box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+        padding: 30px;
+        max-width: 1200px;
+        width: 100%;
+        display: grid;
+        grid-template-columns: 1fr 350px;
+        gap: 30px;
+      }
+
+      .board-section {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+      }
+
+      .game-title {
+        font-size: 2.5em;
+        font-weight: bold;
+        color: #333;
+        margin-bottom: 20px;
+        text-align: center;
+      }
+
+      .chess-board {
+        display: grid;
+        grid-template-columns: repeat(8, 60px);
+        grid-template-rows: repeat(8, 60px);
+        border: 4px solid #8b4513;
+        border-radius: 8px;
+        overflow: hidden;
+        box-shadow: 0 10px 20px rgba(0, 0, 0, 0.2);
+      }
+
+      .square {
+        width: 60px;
+        height: 60px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 36px;
+        cursor: pointer;
+        position: relative;
+        transition: all 0.2s ease;
+      }
+
+      .square.light {
+        background-color: #f0d9b5;
+      }
+
+      .square.dark {
+        background-color: #b58863;
+      }
+
+      .square:hover {
+        background-color: #ffff99 !important;
+        transform: scale(1.05);
+      }
+
+      .square.selected {
+        background-color: #90ee90 !important;
+        box-shadow: inset 0 0 0 3px #006400;
+      }
+
+      .square.possible-move {
+        background-color: #ffb6c1 !important;
+      }
+
+      .square.last-move {
+        background-color: #87ceeb !important;
+      }
+
+      .piece {
+        user-select: none;
+        pointer-events: none;
+      }
+
+      .coordinates {
+        position: absolute;
+        font-size: 10px;
+        font-weight: bold;
+        color: #8b4513;
+      }
+
+      .rank {
+        top: 2px;
+        left: 2px;
+      }
+
+      .file {
+        bottom: 2px;
+        right: 2px;
+      }
+
+      .control-panel {
+        background: #f8f9fa;
+        border-radius: 15px;
+        padding: 25px;
+        height: fit-content;
+      }
+
+      .status-section {
+        background: #e9ecef;
+        border-radius: 10px;
+        padding: 15px;
+        margin-bottom: 20px;
+      }
+
+      .status-title {
+        font-weight: bold;
+        font-size: 1.1em;
+        margin-bottom: 10px;
+        color: #333;
+      }
+
+      .status-item {
+        margin: 8px 0;
+        padding: 5px 0;
+        border-bottom: 1px solid #dee2e6;
+      }
+
+      .status-item:last-child {
+        border-bottom: none;
+      }
+
+      .btn {
+        background: linear-gradient(45deg, #667eea, #764ba2);
+        color: white;
+        border: none;
+        padding: 12px 24px;
+        border-radius: 25px;
+        font-size: 16px;
+        font-weight: bold;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        margin: 5px;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+      }
+
+      .btn:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
+      }
+
+      .btn:disabled {
+        background: #6c757d;
+        cursor: not-allowed;
+        transform: none;
+      }
+
+      .btn-danger {
+        background: linear-gradient(45deg, #ff6b6b, #ee5a24);
+      }
+
+      .move-input {
+        width: 100%;
+        padding: 12px;
+        border: 2px solid #dee2e6;
+        border-radius: 10px;
+        font-size: 16px;
+        margin: 10px 0;
+      }
+
+      .move-input:focus {
+        outline: none;
+        border-color: #667eea;
+      }
+
+      .move-history {
+        max-height: 200px;
+        overflow-y: auto;
+        background: white;
+        border-radius: 8px;
+        padding: 10px;
+        font-family: monospace;
+        font-size: 14px;
+        line-height: 1.6;
+      }
+
+      .alert {
+        padding: 12px;
+        border-radius: 8px;
+        margin: 10px 0;
+        font-weight: bold;
+      }
+
+      .alert-success {
+        background: #d4edda;
+        color: #155724;
+        border: 1px solid #c3e6cb;
+      }
+
+      .alert-error {
+        background: #f8d7da;
+        color: #721c24;
+        border: 1px solid #f5c6cb;
+      }
+
+      .alert-info {
+        background: #cce7ff;
+        color: #004085;
+        border: 1px solid #b3d7ff;
+      }
+
+      .thinking {
+        display: inline-block;
+        animation: pulse 1.5s ease-in-out infinite;
+      }
+
+      @keyframes pulse {
+        0% {
+          opacity: 1;
+        }
+        50% {
+          opacity: 0.5;
+        }
+        100% {
+          opacity: 1;
+        }
+      }
+
+      .evaluation-bar {
+        width: 100%;
+        height: 20px;
+        background: #333;
+        border-radius: 10px;
+        overflow: hidden;
+        margin: 10px 0;
+      }
+
+      .evaluation-fill {
+        height: 100%;
+        background: linear-gradient(90deg, #333 0%, #fff 50%, #fff 100%);
+        transition: width 0.5s ease;
+      }
+
+      @media (max-width: 768px) {
+        .game-container {
+          grid-template-columns: 1fr;
+          gap: 20px;
+          padding: 15px;
+        }
+
+        .chess-board {
+          grid-template-columns: repeat(8, 45px);
+          grid-template-rows: repeat(8, 45px);
+        }
+
+        .square {
+          width: 45px;
+          height: 45px;
+          font-size: 28px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="game-container">
+      <div class="board-section">
+        <h1 class="game-title">🏛️ Chess AI</h1>
+        <div class="chess-board" id="chessBoard"></div>
+      </div>
+
+      <div class="control-panel">
+        <div class="status-section">
+          <div class="status-title">Game Status</div>
+          <div class="status-item">
+            <strong>Turn:</strong> <span id="currentTurn">-</span>
+          </div>
+          <div class="status-item">
+            <strong>You:</strong> <span id="playerColor">-</span>
+          </div>
+          <div class="status-item">
+            <strong>Status:</strong> <span id="gameStatus">No game</span>
+          </div>
+          <div class="status-item">
+            <strong>Check:</strong> <span id="checkStatus">No</span>
+          </div>
+          <div class="status-item">
+            <strong>Evaluation:</strong>
+            <div class="evaluation-bar">
+              <div class="evaluation-fill" id="evaluationFill"></div>
+            </div>
+            <span id="evaluationText">0.00</span>
+          </div>
+        </div>
+
+        <div class="status-section">
+          <div class="status-title">Controls</div>
+          <button class="btn" onclick="createGame('white')">
+            Play as White
+          </button>
+          <button class="btn" onclick="createGame('black')">
+            Play as Black
+          </button>
+          <input
+            type="text"
+            class="move-input"
+            id="moveInput"
+            placeholder="Enter move (e.g., e2e4)"
+            onkeypress="handleMoveInput(event)"
+          />
+          <button class="btn" onclick="makeManualMove()" id="moveBtn">
+            Make Move
+          </button>
+          <button class="btn btn-danger" onclick="deleteGame()">
+            New Game
+          </button>
+        </div>
+
+        <div class="status-section">
+          <div class="status-title">Move History</div>
+          <div class="move-history" id="moveHistory">No moves yet</div>
+        </div>
+
+        <div id="messageArea"></div>
+      </div>
+    </div>
+
+    <script>
+      // Game state
+      let currentGameId = null;
+      let gameState = null;
+      let selectedSquare = null;
+      let possibleMoves = [];
+      let lastMove = null;
+
+      // Piece symbols
+      const pieceSymbols = {
+        wP: "♙",
+        wR: "♖",
+        wN: "♘",
+        wB: "♗",
+        wQ: "♕",
+        wK: "♔",
+        bP: "♟",
+        bR: "♜",
+        bN: "♞",
+        bB: "♝",
+        bQ: "♛",
+        bK: "♚",
+      };
+
+      // Initialize board
+      function initializeBoard() {
+        const board = document.getElementById("chessBoard");
+        board.innerHTML = "";
+
+        for (let row = 0; row < 8; row++) {
+          for (let col = 0; col < 8; col++) {
+            const square = document.createElement("div");
+            square.className = `square ${
+              (row + col) % 2 === 0 ? "light" : "dark"
+            }`;
+            square.dataset.row = row;
+            square.dataset.col = col;
+            square.onclick = () => handleSquareClick(row, col);
+
+            // Add coordinates for first/last files and ranks
+            if (col === 0) {
+              const rank = document.createElement("div");
+              rank.className = "coordinates rank";
+              rank.textContent = 8 - row;
+              square.appendChild(rank);
+            }
+            if (row === 7) {
+              const file = document.createElement("div");
+              file.className = "coordinates file";
+              file.textContent = String.fromCharCode(97 + col);
+              square.appendChild(file);
+            }
+
+            board.appendChild(square);
+          }
+        }
+      }
+
+      // Update board with current game state
+      function updateBoard() {
+        if (!gameState) return;
+
+        const squares = document.querySelectorAll(".square");
+        squares.forEach((square, index) => {
+          const row = Math.floor(index / 8);
+          const col = index % 8;
+
+          // Clear previous states
+          square.classList.remove("selected", "possible-move", "last-move");
+
+          // Remove existing piece
+          const existingPiece = square.querySelector(".piece");
+          if (existingPiece) existingPiece.remove();
+
+          // Add piece if present
+          const piece = gameState.board[row][col];
+          if (piece) {
+            const pieceElement = document.createElement("div");
+            pieceElement.className = "piece";
+            pieceElement.textContent = pieceSymbols[piece] || piece;
+            square.appendChild(pieceElement);
+          }
+
+          // Highlight selected square
+          if (
+            selectedSquare &&
+            selectedSquare.row === row &&
+            selectedSquare.col === col
+          ) {
+            square.classList.add("selected");
+          }
+
+          // Highlight possible moves
+          if (
+            possibleMoves.some((move) =>
+              move.endsWith(`${String.fromCharCode(97 + col)}${8 - row}`)
+            )
+          ) {
+            square.classList.add("possible-move");
+          }
+
+          // Highlight last move
+          if (lastMove) {
+            const fromCol = lastMove.charCodeAt(0) - 97;
+            const fromRow = 8 - parseInt(lastMove.charAt(1));
+            const toCol = lastMove.charCodeAt(2) - 97;
+            const toRow = 8 - parseInt(lastMove.charAt(3));
+
+            if (
+              (row === fromRow && col === fromCol) ||
+              (row === toRow && col === toCol)
+            ) {
+              square.classList.add("last-move");
+            }
+          }
+        });
+      }
+
+      // Handle square click
+      function handleSquareClick(row, col) {
+        if (!gameState || gameState.game_status !== "active") return;
+
+        const isPlayerTurn =
+          gameState.current_player === gameState.player_color;
+        if (!isPlayerTurn) {
+          showMessage("It's not your turn!", "error");
+          return;
+        }
+
+        const clickedSquare = String.fromCharCode(97 + col) + (8 - row);
+
+        if (selectedSquare) {
+          // Try to make move
+          const move = `${selectedSquare.notation}${clickedSquare}`;
+          if (possibleMoves.includes(move)) {
+            makeMove(move);
+          }
+          clearSelection();
+        } else {
+          // Select piece
+          const piece = gameState.board[row][col];
+          if (piece && piece.charAt(0) === gameState.player_color.charAt(0)) {
+            selectedSquare = { row, col, notation: clickedSquare };
+            possibleMoves = gameState.legal_moves.filter((move) =>
+              move.startsWith(clickedSquare)
+            );
+            updateBoard();
+          }
+        }
+      }
+
+      // Clear selection
+      function clearSelection() {
+        selectedSquare = null;
+        possibleMoves = [];
+        updateBoard();
+      }
+
+      // Handle move input
+      function handleMoveInput(event) {
+        if (event.key === "Enter") {
+          makeManualMove();
+        }
+      }
+
+      // API calls
+      async function createGame(playerColor) {
+        try {
+          showMessage("Creating game...", "info");
+
+          const response = await fetch("http://localhost:5000/api/games", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ player_color: playerColor }),
+          });
+
+          const data = await response.json();
+          if (response.ok) {
+            currentGameId = data.game_id;
+            gameState = data;
+            lastMove = null;
+            updateUI();
+            clearSelection();
+            showMessage(
+              `Game created! You are playing as ${playerColor}.`,
+              "success"
+            );
+          } else {
+            showMessage(`Error: ${data.error}`, "error");
+          }
+        } catch (error) {
+          showMessage(`Error: ${error.message}`, "error");
+        }
+      }
+
+      async function makeMove(move) {
+        if (!currentGameId) return;
+
+        try {
+          document.getElementById("moveBtn").disabled = true;
+          showMessage(`Making move: ${move}`, "info");
+
+          const response = await fetch(
+            `http://localhost:5000/api/games/${currentGameId}/moves`,
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ move: move }),
+            }
+          );
+
+          const data = await response.json();
+          if (response.ok) {
+            gameState = data.game_state;
+            lastMove = move;
+            updateUI();
+            clearSelection();
+
+            if (data.ai_move && data.ai_move.success) {
+              showMessage(`You: ${move}, AI: ${data.ai_move.move}`, "success");
+              lastMove = data.ai_move.move;
+            } else {
+              showMessage(`Move made: ${move}`, "success");
+            }
+          } else {
+            showMessage(`Error: ${data.error}`, "error");
+          }
+        } catch (error) {
+          showMessage(`Error: ${error.message}`, "error");
+        } finally {
+          document.getElementById("moveBtn").disabled = false;
+        }
+      }
+
+      async function makeManualMove() {
+        const moveInput = document.getElementById("moveInput");
+        const move = moveInput.value.trim();
+
+        if (!move) {
+          showMessage("Please enter a move", "error");
+          return;
+        }
+
+        await makeMove(move);
+        moveInput.value = "";
+      }
+
+      async function deleteGame() {
+        if (!currentGameId) return;
+
+        try {
+          await fetch(`http://localhost:5000/api/games/${currentGameId}`, {
+            method: "DELETE",
+          });
+
+          currentGameId = null;
+          gameState = null;
+          selectedSquare = null;
+          possibleMoves = [];
+          lastMove = null;
+          updateUI();
+          showMessage("Game deleted", "info");
+        } catch (error) {
+          showMessage(`Error: ${error.message}`, "error");
+        }
+      }
+
+      // UI updates
+      function updateUI() {
+        updateBoard();
+        updateGameInfo();
+        updateMoveHistory();
+      }
+
+      function updateGameInfo() {
+        if (!gameState) {
+          document.getElementById("currentTurn").textContent = "-";
+          document.getElementById("playerColor").textContent = "-";
+          document.getElementById("gameStatus").textContent = "No game";
+          document.getElementById("checkStatus").textContent = "No";
+          document.getElementById("evaluationText").textContent = "0.00";
+          updateEvaluationBar(0);
+          return;
+        }
+
+        document.getElementById("currentTurn").textContent =
+          gameState.current_player;
+        document.getElementById("playerColor").textContent =
+          gameState.player_color;
+        document.getElementById("gameStatus").textContent =
+          gameState.game_status;
+        document.getElementById("checkStatus").textContent = gameState.in_check
+          ? "Yes"
+          : "No";
+
+        const evaluation = gameState.position_evaluation || 0;
+        document.getElementById("evaluationText").textContent =
+          evaluation.toFixed(2);
+        updateEvaluationBar(evaluation);
+      }
+
+      function updateEvaluationBar(evaluation) {
+        const fill = document.getElementById("evaluationFill");
+        const percentage = Math.max(0, Math.min(100, (evaluation + 1) * 50));
+        fill.style.width = percentage + "%";
+
+        if (evaluation > 0.2) {
+          fill.style.background = "linear-gradient(90deg, #333 0%, #fff 100%)";
+        } else if (evaluation < -0.2) {
+          fill.style.background = "linear-gradient(90deg, #fff 0%, #333 100%)";
+        } else {
+          fill.style.background = "#888";
+        }
+      }
+
+      function updateMoveHistory() {
+        const historyElement = document.getElementById("moveHistory");
+        if (!gameState || !gameState.move_history.length) {
+          historyElement.textContent = "No moves yet";
+          return;
+        }
+
+        const moves = gameState.move_history;
+        let historyText = "";
+        for (let i = 0; i < moves.length; i += 2) {
+          const moveNumber = Math.floor(i / 2) + 1;
+          const whiteMove = moves[i] || "";
+          const blackMove = moves[i + 1] || "";
+          historyText += `${moveNumber}. ${whiteMove} ${blackMove}\n`;
+        }
+        historyElement.textContent = historyText;
+      }
+
+      function showMessage(message, type) {
+        const messageArea = document.getElementById("messageArea");
+        messageArea.innerHTML = `<div class="alert alert-${type}">${message}</div>`;
+        setTimeout(() => {
+          messageArea.innerHTML = "";
+        }, 5000);
+      }
+
+      // Initialize
+      document.addEventListener("DOMContentLoaded", function () {
+        initializeBoard();
+        showMessage("Welcome! Create a new game to start playing.", "info");
+      });
+    </script>
+  </body>
+</html>

@@ -3,7 +3,7 @@ Chess AI API Backend
 RESTful API for playing chess against your AI
 """
 
-from flask import Flask, request, jsonify, render_template_string
+from flask import Flask, request, jsonify
 from flask_cors import CORS
 import uuid
 import copy
@@ -15,6 +15,7 @@ import json
 
 from chess_engine import ChessBoard, Color, PieceType, Piece, Move
 from chess_ai_integration import ChessAI
+from pathlib import Path
 
 app = Flask(__name__)
 CORS(app)  # Enable cross-origin requests
@@ -148,8 +149,26 @@ class GameSession:
 
 @app.route('/')
 def home():
-    """Serve simple web interface"""
-    return render_template_string(HTML_TEMPLATE)
+    """Serve the chess frontend HTML file"""
+    try:
+        frontend_path = Path(__file__).parent / 'chess_frontend.html'
+        if frontend_path.exists():
+            with open(frontend_path, 'r', encoding='utf-8') as f:
+                return f.read()
+        else:
+            return """
+            <h1>Frontend Not Found</h1>
+            <p>Please make sure 'chess_frontend.html' is in the same directory as the backend script.</p>
+            <p>You can also access the API directly:</p>
+            <ul>
+                <li>POST /api/games - Create new game</li>
+                <li>GET /api/games/{id} - Get game state</li>
+                <li>POST /api/games/{id}/moves - Make a move</li>
+            </ul>
+            """, 404
+    except Exception as e:
+        return f"Error loading frontend: {e}", 500
+
 
 @app.route('/api/health', methods=['GET'])
 def health_check():
@@ -323,7 +342,8 @@ def schedule_cleanup():
 HTML_TEMPLATE = '''
 <!DOCTYPE html>
 <html>
-<head>c
+<head>
+    <title>Chess AI API</title>
     <style>
         body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }
         .board { display: grid; grid-template-columns: repeat(8, 50px); gap: 1px; margin: 20px 0; }
