@@ -74,6 +74,19 @@ class ChessAI:
             PieceType.ROOK: 5, PieceType.QUEEN: 9, PieceType.KING: 0
         }
         
+        # Make temp moves to eval position
+        temp_board = copy.deepcopy(board)
+        temp_board.make_move(move, check_legality=False)
+        
+        # Highest priority is checkmating
+        opponent_color = Color.BLACK if move.piece.color == Color.WHITE else Color.WHITE
+        if temp_board.is_checkmate(opponent_color):
+            return 1000 # HUGEEEEE BONUSS HAHAHAHAHAH
+        
+        # If move puts in check
+        if temp_board.is_in_check(opponent_color):
+            score += 15 # good bonus
+        
         # 1. Prioritize captures (especially good trades)
         if move.captured_piece:
             captured_value = piece_values.get(move.captured_piece.piece_type, 0)
@@ -84,19 +97,20 @@ class ChessAI:
             if captured_value < moving_value:
                 score -= (moving_value - captured_value) * 5
 
-        # 2. Avoid hanging pieces (check if move puts piece in danger)
-        temp_board = copy.deepcopy(board)
-        temp_board.make_move(move, check_legality=False)
         to_row, to_col = move.to_pos
         
         # Check if the moved piece can be captured
-        if temp_board.is_square_attacked(to_row, to_col, 
-                                        Color.BLACK if move.piece.color == Color.WHITE else Color.WHITE):
+        if temp_board.is_square_attacked(to_row, to_col, opponent_color):
 
             piece_value = piece_values.get(move.piece.piece_type, 0)
             score -= piece_value * 8  # Heavy penalty for hanging pieces
 
-        # 3. Prefer center control early in game
+        # BETETER ENDGAME YEAHHHHH
+        total_material = self.count_total_material(board)
+        if total_material <= 20:
+            score += self.evaluate_endgame_factors(temp_board, move)
+        
+        
         if len(board.move_history) < 20:
             to_row, to_col = move.to_pos
             if 2 <= to_row <= 5 and 2 <= to_col <= 5:  # Center squares
@@ -105,17 +119,76 @@ class ChessAI:
         # 4. Castling bonus
         if move.is_castling:
             score += 5
+            
+        # piece development
+        if len(board.move_history) < 16:
+            if self.piece_already_moved(board, move.piece, move.from_pos):
+                score -= 3
 
         # 5. Avoid moving into check
         if temp_board.is_in_check(move.piece.color):
             score -= 20
-
-        # 6. Prefer checks (but not blindly)
-        opponent_color = Color.BLACK if move.piece.color == Color.WHITE else Color.WHITE
-        if temp_board.is_in_check(opponent_color):
-            score += 3
-
         return score
+    
+    def count_total_material(self, board: ChessBoard) -> int:
+        """Count total material on board"""
+        piece_values = {
+            PieceType.PAWN: 1, PieceType.KNIGHT: 3, PieceType.BISHOP: 3,
+            PieceType.ROOK: 5, PieceType.QUEEN: 9, PieceType.KING: 0
+        }
+        
+        total = 0
+        for row in range(8):
+            for col in range(8):
+                piece = board.get_piece(row, col)
+                if piece:
+                    total += piece_values.get(piece.piece_type, 0)
+        return total
+    
+    def evaluate_endgame_factors(self, board: ChessBoard, move: Move) -> float:
+        """Special evaluation for endgame positions"""
+        score = 0.0
+        
+        # In endgame, centralize king
+        if move.piece.piece_type == PieceType.KING:
+            to_row, to_col = move.to_pos
+            # Bonus for moving king to center
+            center_distance = abs(3.5 - to_row) + abs(3.5 - to_col)
+            score += (7 - center_distance) * 2
+        
+        # Promote pawns aggressively
+        if move.piece.piece_type == PieceType.PAWN:
+            to_row, to_col = move.to_pos
+            if move.piece.color == Color.WHITE:
+                score += (6 - to_row) * 3  # Closer to promotion
+            else:
+                score += (to_row - 1) * 3  # Closer to promotion
+        
+        # Use heavy pieces to support mate
+        if move.piece.piece_type in [PieceType.QUEEN, PieceType.ROOK]:
+            score += 3
+        
+        return score
+    
+    def piece_already_moved(self, board: ChessBoard, piece: Piece, from_pos: Tuple[int, int]) -> bool:
+        """Check if this piece has already moved in the opening"""
+        piece_first_moves = {
+            # Track if pieces have moved from starting positions
+            PieceType.KNIGHT: [(0, 1), (0, 6), (7, 1), (7, 6)],
+            PieceType.BISHOP: [(0, 2), (0, 5), (7, 2), (7, 5)],
+            PieceType.QUEEN: [(0, 3), (7, 3)],
+        }
+        
+        starting_positions = piece_first_moves.get(piece.piece_type, [])
+        
+        # Count how many times this piece type has moved
+        move_count = 0
+        for past_move in board.move_history:
+            if past_move.piece.piece_type == piece.piece_type and past_move.piece.color == piece.color:
+                move_count += 1
+        
+        # Penalize moving same piece multiple times in opening
+        return move_count > 0 and from_pos not in starting_positions
     
     def select_best_move(self, board: ChessBoard) -> Optional[Move]:
         """Select the best move using AI + chess heuristics"""
@@ -137,6 +210,10 @@ class ChessAI:
             if not legal_moves_with_squares:
                 return None
             
+            # Check for material advantage - if big advantage, prioritize checkmate
+            material_advantage = self.calculate_material_advantage(board)
+            is_winning = material_advantage > 5  # Significant material advantage
+            
             # Combine AI prediction with chess heuristics
             best_move = None
             best_total_score = float('-inf')
@@ -154,15 +231,24 @@ class ChessAI:
                 # Chess heuristics score
                 heuristic_score = self.evaluate_move_heuristically(board, move)
                 
-                # Combined score (weight heuristics more heavily due to limited training data)
-                total_score = heuristic_score + (ai_score * 0.5)
+                # If winning, prioritize heuristics more heavily (especially checkmate detection)
+                if is_winning:
+                    total_score = heuristic_score + (ai_score * 0.2)  # Heavy heuristic weight
+                else:
+                    total_score = heuristic_score + (ai_score * 0.5)  # Balanced
                 
                 if total_score > best_total_score:
                     best_total_score = total_score
                     best_move = move
             
             if best_move:
-                print(f"🧠 AI selected: {best_move} (score: {best_total_score:.1f})")
+                # Special logging for checkmate moves
+                if best_total_score >= 1000:
+                    print(f"🏆 AI found CHECKMATE: {best_move}!")
+                elif best_total_score >= 15:
+                    print(f"⚔️ AI giving CHECK: {best_move} (score: {best_total_score:.1f})")
+                else:
+                    print(f"🧠 AI selected: {best_move} (score: {best_total_score:.1f})")
                 return best_move
             
             # Fallback to first legal move
@@ -171,6 +257,28 @@ class ChessAI:
         except Exception as e:
             print(f"⚠ AI prediction failed: {e}. Using random move.")
             return self.select_random_move(board)
+        
+    def calculate_material_advantage(self, board: ChessBoard) -> float:
+        """Calculate material advantage for current AI color"""
+        piece_values = {
+            PieceType.PAWN: 1, PieceType.KNIGHT: 3, PieceType.BISHOP: 3,
+            PieceType.ROOK: 5, PieceType.QUEEN: 9, PieceType.KING: 0
+        }
+        
+        ai_material = 0
+        opponent_material = 0
+        
+        for row in range(8):
+            for col in range(8):
+                piece = board.get_piece(row, col)
+                if piece:
+                    value = piece_values.get(piece.piece_type, 0)
+                    if piece.color == board.current_player:  # AI's color
+                        ai_material += value
+                    else:
+                        opponent_material += value
+        
+        return ai_material - opponent_material
     
     def select_random_move(self, board: ChessBoard) -> Optional[Move]:
         """Fallback: select a random legal move"""
