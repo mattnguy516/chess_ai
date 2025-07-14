@@ -360,7 +360,7 @@ HTML_TEMPLATE = '''
     </style>
 </head>
 <body>
-    <h1>🏛️ Chess AI API</h1>
+    <h1>Chess AI API</h1>
     <p>RESTful API for playing chess against your trained AI</p>
     
     <div class="game-info">
