@@ -1,0 +1,25 @@
+# Core Dependencies
+flask==2.3.3
+flask-cors==4.0.0
+requests==2.31.0
+
+# Deep Learning
+torch==2.1.0
+torchvision==0.16.0
+
+# Data Processing
+numpy==1.24.3
+pandas==2.0.3
+python-chess==1.999
+
+# Data Compression
+zstandard==0.21.0
+
+# Visualization (for training plots)
+matplotlib==3.7.2
+tqdm==4.66.1
+
+# Development Tools (optional)
+pytest==7.4.0
+black==23.7.0
+flake8==6.0.0
