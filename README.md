@@ -87,6 +87,5 @@ Project Structure
 - CORS-enabled for frontend integration
 
 **`chess_frontend.html`** - Modern web interface
-- Responsive design with mobile support
 - Interactive chess board with drag-and-drop
 - Real-time game analysis and move history
