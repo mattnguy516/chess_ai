@@ -2,6 +2,8 @@ AI Chess Engine
 
 A complete chess AI system built from scratch, featuring a custom chess engine, deep learning neural network, and modern web interface. This project demonstrates full-stack development, machine learning, and game development skills.
 
+<img width="979" height="922" alt="image" src="https://github.com/user-attachments/assets/b1246dbf-054c-40f3-babe-6167267501af" />
+
 
 Features
 
